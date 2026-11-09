@@ -1,0 +1,114 @@
+name: Build Astratera Chronist (Windows exe)
+
+# Run it by hand:  Actions -> "Build Astratera Chronist (Windows exe)" -> Run workflow
+# Or push a tag such as  chronist-v1.0.0  - the exe is then also attached to a GitHub Release.
+#
+# NOTE: GitHub only reads workflows from  .github/workflows  at the ROOT of a repository.
+# The step "Locate the app folder" finds astratera_chronist.py wherever the Astratera_Chronist
+# folder sits in the repo, so the workflow does not care about the folder's position.
+on:
+  workflow_dispatch:
+    inputs:
+      onefile:
+        description: "Single .exe (untick for a folder build that starts faster)"
+        type: boolean
+        default: true
+      release_tag:
+        description: "Optional: also publish a GitHub Release with this tag (e.g. chronist-v1.0.0)"
+        type: string
+        default: ""
+  push:
+    tags:
+      - "chronist-v*"
+
+permissions:
+  contents: write        # needed to create the release
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Locate the app folder
+        run: |
+          $main = Get-ChildItem -Path . -Recurse -Filter astratera_chronist.py -File |
+                  Where-Object { $_.FullName -notmatch '[\\/](build|dist|\.venv[^\\/]*)[\\/]' } |
+                  Select-Object -First 1
+          if (-not $main) { throw "astratera_chronist.py was not found in this repository." }
+          $abs = $main.DirectoryName
+          $rel = [IO.Path]::GetRelativePath($env:GITHUB_WORKSPACE, $abs).Replace('\', '/')
+          "APP_DIR=$abs" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "APP_REL=$rel" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "App folder: $rel"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ${{ env.APP_REL }}/requirements.txt
+
+      - name: Install requirements
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pytest
+
+      - name: Run tests
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          QT_QPA_PLATFORM: offscreen
+          CHRONIST_NO_AUDIO: "1"
+        run: python -m pytest tests -q
+
+      - name: Build exe
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          $mode = "--onefile"
+          if ("${{ inputs.onefile }}" -eq "false") { $mode = "--onedir" }
+          pyinstaller --noconfirm --clean $mode --windowed `
+            --name AstrateraChronist `
+            --icon assets/chronist.ico `
+            --exclude-module tkinter `
+            astratera_chronist.py
+
+      - name: Smoke test the built exe
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          CHRONIST_NO_AUDIO: "1"
+        run: |
+          $exe = if (Test-Path dist/AstrateraChronist.exe) { "dist/AstrateraChronist.exe" } else { "dist/AstrateraChronist/AstrateraChronist.exe" }
+          $probe = Join-Path $env:RUNNER_TEMP "probe.ico"
+          $p = Start-Process -FilePath $exe -ArgumentList "--export-icon", $probe -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or -not (Test-Path $probe)) { throw "The built exe did not start correctly (exit code $($p.ExitCode))." }
+          Write-Host "Built exe starts fine."
+
+      - name: Package
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          if (Test-Path dist/AstrateraChronist.exe) {
+            Copy-Item dist/AstrateraChronist.exe out/AstrateraChronist.exe
+          } else {
+            Compress-Archive -Path dist/AstrateraChronist -DestinationPath out/AstrateraChronist-windows-folder.zip
+          }
+          Get-ChildItem out | Format-Table Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AstrateraChronist-windows
+          path: ${{ env.APP_REL }}/out/*
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/chronist-v') || inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          name: Astratera Chronist ${{ inputs.release_tag || github.ref_name }}
+          files: ${{ env.APP_REL }}/out/*
+          generate_release_notes: true

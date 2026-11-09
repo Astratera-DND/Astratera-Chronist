@@ -1,0 +1,10 @@
+# build output of build_chronist.bat / PyInstaller
+build/
+dist/
+out/
+*.spec
+.venv-build/
+__pycache__/
+.pytest_cache/
+# fake sessions made by tests/make_test_session.py
+test_recordings/
