@@ -18,7 +18,7 @@ Everything is local and offline. The viewer **only reads** your recording folder
 
 ## Using it
 
-1. Start the program, paste the path of a session folder (e.g. `…\Recordings\2026-10-22_session`) or press **Browse**. Dropping the folder onto the window works as well.
+1. Start the tool, paste the path of a session folder (e.g. `…\Recordings\2026-10-22_session`) or press **Browse**. Dropping the folder onto the window works as well.
    If you pick the *recordings* folder, it finds the sessions inside and lets you choose one.
 2. The markers and the audio are ready immediately, the waveform is analysed in the background (a few seconds the first time, instant afterwards).
 
