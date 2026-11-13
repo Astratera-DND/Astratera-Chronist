@@ -463,6 +463,7 @@ class TranscriptPanel(QWidget):
 
         self.list = QListWidget()
         self.list.setWordWrap(True)
+        self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)      # text wraps; no sideways scrolling
         # NOTE: no "batched" layout - with it, scrolling to a line far down a long transcript silently fails
         self.delegate = _LineDelegate(self.list)
         self.list.setItemDelegate(self.delegate)
