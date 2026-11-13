@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/chronist_icon_256.png" width="128" alt="Astratera Chronist icon">
+  <img src="assets/Chronist_Banner.png" alt="Astratera Chronist icon">
 </p>
 
 <h1 align="center">Astratera Chronist</h1>
